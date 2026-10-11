@@ -107,7 +107,17 @@ question.addEventListener('input',()=>{limitInput(question,1200);count();if(stat
 document.querySelectorAll('[data-scenario]').forEach(el=>el.addEventListener('click',()=>{resetState();selectScenario(el.dataset.scenario);question.value=samples[el.dataset.scenario];count();render();question.focus();}));
 document.querySelectorAll('[data-audience]').forEach(el=>el.addEventListener('click',()=>{audience=el.dataset.audience;examples();}));
 $('#reset').addEventListener('click',()=>{resetState();selectScenario(null);question.value='';count();render();question.focus();});$('#verify-source').addEventListener('click',verify);$('#close-source').addEventListener('click',()=>$('#source-dialog').close());$('#return-to-draft').addEventListener('click',()=>$('#source-dialog').close());$('#source-dialog').addEventListener('close',()=>steps(state.stage==='answer'?(state.copied?5:state.sourceVerified||state.editing?4:2):state.stage==='empty'?1:2));
-for(const id of ['source-dialog','materials-dialog']){$('#'+id).addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();if(e.target===e.currentTarget&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))e.currentTarget.close();});}
+for(const id of ['source-dialog','materials-dialog']){
+  const dialog=$('#'+id);
+  dialog.addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();if(e.target===e.currentTarget&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))e.currentTarget.close();});
+  dialog.addEventListener('keydown',e=>{
+    if(e.key!=='Tab'||!dialog.open)return;
+    const controls=Array.from(dialog.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')).filter(el=>!el.disabled&&!el.hidden&&el.tabIndex>=0&&el.getClientRects().length);
+    const first=controls[0],last=controls[controls.length-1];if(!first)return;
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  });
+}
 $('#materials').addEventListener('click',()=>{$('#materials-list').innerHTML=Object.values(KB.sources).map(d=>`<article class="material-item"><h3>${esc(d.title)}</h3><p>${esc(d.summary)}</p><p class="source-footnote">${esc(d.caveat)}</p><a class="resource-link" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">Официальный источник</a></article>`).join('');$('#materials-dialog').showModal();});$('#close-materials').addEventListener('click',()=>$('#materials-dialog').close());count();examples();render();
 // Structured browser actions use the same visible state and safeguards.
 if(document.modelContext?.registerTool){const lifecycle=new AbortController(),schema=p=>({type:'object',properties:p,additionalProperties:false}),register=(name,description,inputSchema,execute,readOnlyHint=false)=>{try{Promise.resolve(document.modelContext.registerTool({name,description,inputSchema,annotations:{readOnlyHint,untrustedContentHint:readOnlyHint},execute},{signal:lifecycle.signal})).catch(()=>{});}catch{}};
