@@ -31,3 +31,34 @@ const BANK_KNOWLEDGE = {
     {id:'traffic',audience:'business',label:'Проверка контрагента',question:'Как проверить контрагента через сервис Светофор в Прио?',topic:'Бизнес и ИП · проверка контрагента',source:'traffic',answer:'В новости банка сервис «Светофор» описан так: при создании платежа вводится ИНН контрагента, после чего можно открыть подробный отчёт по цветовому индикатору. Текущие условия доступа и оплату нужно проверить отдельно; бесплатный период из новости уже завершился.'}
   ]
 };
+
+/* Local prototype metadata. Public materials have UNKNOWN bank validity. */
+const DEMO_KNOWLEDGE = {
+  version:'2.0.0',
+  topics:[
+    {id:'unknown',label:'Тема не определена'},
+    {id:'cards',label:'Карты'}, {id:'digital',label:'Дистанционное обслуживание'},
+    {id:'security',label:'Финансовая безопасность'}, {id:'offices',label:'Офисы и банкоматы'},
+    {id:'appeals',label:'Обращения клиентов'}, {id:'rko',label:'Расчётное обслуживание'},
+    {id:'payments',label:'Приём платежей'}, {id:'payroll',label:'Зарплатный проект'},
+    {id:'counterparties',label:'Проверка контрагентов'}, {id:'control',label:'Учебные контрольные документы'}
+  ],
+  caseTopics:{lost:'cards',block:'cards',unblock:'cards',registration:'digital',download:'digital',fraud:'security',office:'offices',appeal:'appeals',rko:'rko','business-access':'digital',qr:'payments',acquiring:'payments',payroll:'payroll',traffic:'counterparties'},
+  sourceTopics:{contacts:['cards','digital','appeals'],retail:['digital'],manual:['cards'],security:['security'],offices:['offices'],business:['digital'],rko:['rko'],qr:['payments'],acquiring:['payments'],payroll:['payroll'],traffic:['counterparties']},
+  controlSources:{
+    'demo-guide':{title:'Учебный регламент обработки заявки',section:'Контрольный пункт 4.2',version:'1.0',validFrom:'2026-10-01',validTo:'2026-12-31',status:'active',summary:'В учебном процессе контрольную заявку передают в учебную вторую линию. Номер контрольной заявки — TEST-42.',answer:'По учебному регламенту контрольную заявку TEST-42 передают в учебную вторую линию.',conflictGroup:'control-route'},
+    'demo-conflict':{title:'Учебный альтернативный регламент',section:'Контрольный пункт 4.2',version:'2.0',validFrom:'2026-10-01',validTo:'2026-12-31',status:'draft',summary:'В учебном процессе контрольную заявку передают в учебную третью линию. Номер контрольной заявки — TEST-42.',answer:'По учебному альтернативному регламенту контрольную заявку TEST-42 передают в учебную третью линию.',conflictGroup:'control-route'},
+    'demo-revoked':{title:'Учебная отозванная инструкция',section:'Контрольный код OLD-17',version:'0.7',validFrom:'2026-09-01',validTo:'2026-10-10',status:'revoked',summary:'Учебный код OLD-17 использовался в старой инструкции. Документ отозван.',answer:'Учебный код OLD-17 был указан в старой инструкции.'},
+    'demo-future':{title:'Учебная будущая инструкция',section:'Контрольный код NEXT-25',version:'2.5',validFrom:'2026-11-01',validTo:'2027-01-31',status:'future',summary:'Учебный код NEXT-25 описан в будущей инструкции. Редакция вступает в силу 01.11.2026.',answer:'Учебный код NEXT-25 указан в будущей инструкции.'}
+  },
+  demos:[
+    {id:'answer',label:'Ответ и проверка',topic:'cards',question:BANK_KNOWLEDGE.cases[0].question},
+    {id:'clarify',label:'Нужно уточнение',topic:'digital',question:'Не помню пароль интернет-банка. Что делать?'},
+    {id:'insufficient',label:'Нет действующего тарифа',topic:'rko',question:'Можно сейчас открыть счёт по акции РКО «Экспресс»?'},
+    {id:'conflict',label:'Конфликт документов',topic:'control',question:'Куда передать контрольную заявку TEST-42?'},
+    {id:'revoked',label:'Отозванный источник',topic:'control',question:'Что означает учебный код OLD-17?'},
+    {id:'future',label:'Будущая версия',topic:'control',question:'Что означает учебный код NEXT-25?'},
+    {id:'error',label:'Сбой ассистента',topic:'cards',question:BANK_KNOWLEDGE.cases[0].question},
+    {id:'timeout',label:'Тайм-аут ассистента',topic:'cards',question:BANK_KNOWLEDGE.cases[0].question}
+  ]
+};
