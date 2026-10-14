@@ -112,6 +112,7 @@ function progressText(report) {
     weights:'Загружаем веса бесплатной модели (около 300 МБ при первом запуске)…',
     asset:'Загружаем дополнительные файлы модели…'
   };
+  if(report?.operatorPhase==='asset-error')return {phase:'loading',progress:0,text:'Не удалось получить один из файлов модели. Проверяем завершение загрузки…'};
   if(phases[report?.operatorPhase])return {phase:'loading',progress:0,text:phases[report.operatorPhase]};
   const progress=Math.min(1,Math.max(0,Number(report?.progress)||0));
   const percent=Math.round(progress*100);
@@ -129,20 +130,45 @@ async function defaultEngineLoader(onProgress,onWorker) {
   onWorker(worker);
   // Cache.add can hide its network operation from fetch cancellation/progress in embedded browsers.
   // IndexedDB uses the explicit bounded fetch path and still caches model assets between visits.
-  const appConfig={...prebuiltAppConfig,cacheBackend:'indexeddb',model_list:[{...record,overrides:{...record.overrides,context_window_size:4096}}]};
+  const appConfig={...prebuiltAppConfig,cacheBackend:'indexeddb',model_list:[{
+    ...record,
+    model:new URL('./model-assets/',import.meta.url).href,
+    model_lib:new URL('./vendor/qwen-model.wasm',import.meta.url).href,
+    overrides:{...record.overrides,context_window_size:4096}
+  }]};
+  let lastPhase='',lastAssetError=null;
+  const receiveProgress=report=>{
+    if(report?.operatorPhase==='asset-error')lastAssetError={assetType:report.assetType,httpStatus:report.httpStatus,errorName:report.errorName};
+    else if(typeof report?.operatorPhase==='string')lastPhase=report.operatorPhase;
+    onProgress(progressText(report));
+  };
+  const assetFailureDetail=()=>{
+    const names={config:'описание модели',wasm:'вычислительный модуль',tokenizer:'словарь',weights:'веса модели',asset:'дополнительный файл','worker-ready':'обработчик'};
+    const file=names[lastAssetError?.assetType||lastPhase];
+    if(!file)return '';
+    const status=Number(lastAssetError?.httpStatus);
+    const name=lastAssetError?.errorName;
+    let reason='загрузка или запуск не завершены';
+    if(status>=400&&status<=599)reason='сервер вернул HTTP '+status;
+    else if(name==='TimeoutError'||name==='AbortError')reason='истекло время загрузки';
+    else if(name==='TypeError'||name==='NetworkError')reason='сетевая ошибка или ограничение доступа браузера';
+    else if(name==='SecurityError')reason='браузер ограничил доступ';
+    else if(name==='QuotaExceededError')reason='недостаточно места в хранилище браузера';
+    return ' Этап: '+file+' — '+reason+'.';
+  };
   let rejectWorkerError;
   const workerError=new Promise((_,reject)=>{rejectWorkerError=reject;});
   const onError=()=>rejectWorkerError(new LocalAIError('MODEL_LOAD_FAILED','Не удалось запустить обработчик локальной модели. Обновите страницу в актуальном Chrome/Edge и проверьте WebGPU.'));
   worker.addEventListener('error',onError);worker.addEventListener('messageerror',onError);
   try {
     return await Promise.race([
-      CreateWebWorkerMLCEngine(worker,MODEL_ID,{appConfig,initProgressCallback:report=>onProgress(progressText(report)),logLevel:'ERROR'}),
+      CreateWebWorkerMLCEngine(worker,MODEL_ID,{appConfig,initProgressCallback:receiveProgress,logLevel:'ERROR'}),
       workerError
     ]);
   } catch(error) {
     worker.terminate();
     if(error instanceof LocalAIError)throw error;
-    throw new LocalAIError('MODEL_LOAD_FAILED','Не удалось загрузить файлы модели или запустить WebGPU. Проверьте соединение и свободную память. Материалы доступны вручную.');
+    throw new LocalAIError('MODEL_LOAD_FAILED','Не удалось загрузить файлы модели или запустить WebGPU.'+assetFailureDetail()+' Проверьте соединение и свободную память. Материалы доступны вручную.');
   } finally {
     worker.removeEventListener('error',onError);worker.removeEventListener('messageerror',onError);
   }

@@ -5,6 +5,11 @@ import { WebWorkerMLCEngineHandler } from './vendor/webllm.js';
 const assetProgress = phase => self.postMessage({
   kind:'initProgressCallback',uuid:'',content:{progress:0,operatorPhase:phase}
 });
+const assetError = (phase,httpStatus,error) => {
+  const allowedNames=['TimeoutError','AbortError','TypeError','NetworkError','SecurityError','QuotaExceededError'];
+  const errorName=allowedNames.includes(error?.name)?error.name:'Error';
+  if(loading)self.postMessage({kind:'initProgressCallback',uuid:'',content:{progress:0,operatorPhase:'asset-error',assetType:phase,httpStatus:Number.isInteger(httpStatus)?httpStatus:0,errorName}});
+};
 let loading=false,reloadId='';
 const nativeFetch=self.fetch.bind(self);
 self.fetch=async(resource,options={})=>{
@@ -18,7 +23,22 @@ self.fetch=async(resource,options={})=>{
   // Keep timeout active while the response body is read by the artifact cache.
   const deadline=AbortSignal.timeout(90_000);
   const signals=[options.signal||(resource instanceof Request?resource.signal:null),deadline].filter(Boolean);
-  return nativeFetch(resource,{...options,signal:AbortSignal.any(signals)});
+  let response;
+  try {response=await nativeFetch(resource,{...options,signal:AbortSignal.any(signals)});}
+  catch(error){assetError(phase,0,error);throw error;}
+  if(!response.ok){assetError(phase,response.status,null);return response;}
+  if(!response.body)return response;
+  // Stream through exactly once. This reports failures during body download without
+  // cloning or buffering a second copy of the large model weight shards.
+  const reader=response.body.getReader();
+  const body=new ReadableStream({
+    async pull(controller){
+      try {const {done,value}=await reader.read();if(done)controller.close();else controller.enqueue(value);}
+      catch(error){assetError(phase,response.status,error);controller.error(error);}
+    },
+    cancel(reason){return reader.cancel(reason);}
+  });
+  return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});
 };
 
 const handler = new WebWorkerMLCEngineHandler();

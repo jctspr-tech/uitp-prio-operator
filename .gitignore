@@ -2,4 +2,6 @@
 .env.*
 node_modules/
 dist/vendor/webllm.js
+dist/vendor/*.wasm
+dist/model-assets/
 qa/
