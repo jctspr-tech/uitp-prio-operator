@@ -132,7 +132,9 @@ async function defaultEngineLoader(onProgress,onWorker) {
   // IndexedDB uses the explicit bounded fetch path and still caches model assets between visits.
   const appConfig={...prebuiltAppConfig,cacheBackend:'indexeddb',model_list:[{
     ...record,
-    model:new URL('./model-assets/',import.meta.url).href,
+    // WebLLM cleanModelUrl expects a HuggingFace-compatible /resolve/<revision>/ suffix.
+    // The pinned build mirrors the snapshot at this exact static directory.
+    model:new URL('./model-assets/resolve/main/',import.meta.url).href,
     model_lib:new URL('./vendor/qwen-model.wasm',import.meta.url).href,
     overrides:{...record.overrides,context_window_size:4096}
   }]};

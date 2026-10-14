@@ -57,6 +57,8 @@ async function downloadAsset(asset,folder){
   }
 }
 const queue=[...manifest.assets];
-await Promise.all([0,1].map(async()=>{while(queue.length)await downloadAsset(queue.shift(),'dist/model-assets');}));
+// WebLLM normalizes model roots to /resolve/<revision>/. Keep the
+// mirrored snapshot at the same shape so all config/weight URLs resolve.
+await Promise.all([0,1].map(async()=>{while(queue.length)await downloadAsset(queue.shift(),'dist/model-assets/resolve/main');}));
 await downloadAsset(manifest.wasm,'dist/vendor');
 console.log('Pinned WebLLM and model snapshot '+manifest.revision+' verified. Free static AI build ready.');
