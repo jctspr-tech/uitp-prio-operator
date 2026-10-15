@@ -1,4 +1,5 @@
 import { WebWorkerMLCEngineHandler } from './vendor/webllm.js';
+import { createWeightDownloader } from './weight-download.js';
 
 // WebLLM's normal percentage starts only after its first config/WASM fetches.
 // Report bounded asset phases without logging prompts, credentials, or raw exceptions.
@@ -6,7 +7,7 @@ const assetProgress = phase => self.postMessage({
   kind:'initProgressCallback',uuid:'',content:{progress:0,operatorPhase:phase}
 });
 const assetError = (phase,httpStatus,error,assetPath='',fetchStep='request') => {
-  const allowedNames=['TimeoutError','AbortError','TypeError','NetworkError','SecurityError','QuotaExceededError'];
+  const allowedNames=['TimeoutError','AbortError','TypeError','NetworkError','SecurityError','QuotaExceededError','WeightManifestError','WeightIntegrityError','WeightHTTPError'];
   const errorName=allowedNames.includes(error?.name)?error.name:'Error';
   // This channel applies only to public runtime/model asset downloads, never model prompts.
   // Strip complete URLs/query strings and possible credentials from the short browser error.
@@ -15,6 +16,10 @@ const assetError = (phase,httpStatus,error,assetPath='',fetchStep='request') => 
 };
 let loading=false,reloadId='';
 const nativeFetch=self.fetch.bind(self);
+const weightDownloader=createWeightDownloader({nativeFetch,baseUrl:self.location.href,onProgress:report=>{
+  if(!loading)return;
+  self.postMessage({kind:'initProgressCallback',uuid:'',content:{progress:0,operatorPhase:report.event==='retry'?'weight-retry':'weight-chunks',chunk:report.chunk,totalChunks:report.totalChunks,attempt:report.attempt,maxAttempts:report.maxAttempts}});
+}});
 self.fetch=async(resource,options={})=>{
   options=options??{};
   const url=typeof resource==='string'?resource:resource?.url||String(resource);
@@ -34,7 +39,9 @@ self.fetch=async(resource,options={})=>{
   let response;
   const resourceSignal=typeof Request!=='undefined'&&resource instanceof Request?resource.signal:null;
   const externalSignal=options.signal||resourceSignal;
-  for(let attempt=0;attempt<3;attempt++){
+  try {response=await weightDownloader.fetch(resource,options);}
+  catch(error){assetError(phase,Number(error?.status)||0,error,assetPath,'chunked');throw error;}
+  if(!response)for(let attempt=0;attempt<3;attempt++){
     if(externalSignal?.aborted)throw new DOMException('Model asset loading canceled','AbortError');
     try {
       const deadline=AbortSignal.timeout(240_000);

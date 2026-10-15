@@ -62,4 +62,27 @@ const queue=[...manifest.assets];
 // mirrored snapshot at the same shape so all config/weight URLs resolve.
 await Promise.all([0,1].map(async()=>{while(queue.length)await downloadAsset(queue.shift(),'dist/'+manifest.staticDirectory);}));
 await downloadAsset(manifest.wasm,'dist/vendor');
+// Small verified downloads are more reliable in embedded browsers and on slow
+// connections than one 100+ MB request. The worker reconstructs the original
+// byte stream before WebLLM caches it, without changing any model weights.
+const chunkSize=8*1024*1024;
+const weightIndex={version:1,revision:manifest.revision,files:{}};
+for(const asset of manifest.assets.filter(a=>/^params_shard_\d+\.bin$/u.test(a.file))){
+  const fileRecord={bytes:asset.bytes,sha256:asset.sha256,chunks:[]};
+  const source=resolve(root,'dist',manifest.staticDirectory,asset.file);
+  for(let offset=0,part=0;offset<asset.bytes;offset+=chunkSize,part++){
+    const length=Math.min(chunkSize,asset.bytes-offset);
+    const blocks=[];
+    for await(const block of createReadStream(source,{start:offset,end:offset+length-1}))blocks.push(block);
+    const bytes=Buffer.concat(blocks);
+    if(bytes.length!==length)throw Error('Incomplete model chunk');
+    const file=`chunks/${asset.file.slice(0,-4)}/part-${String(part).padStart(3,'0')}.bin`;
+    const target=resolve(root,'dist',manifest.staticDirectory,file);
+    await mkdir(dirname(target),{recursive:true});await writeFile(target,bytes);
+    fileRecord.chunks.push({file,bytes:length,sha256:createHash('sha256').update(bytes).digest('hex')});
+  }
+  weightIndex.files[asset.file]=fileRecord;
+}
+await writeFile(resolve(root,'dist',manifest.staticDirectory,'weight-chunks.json'),JSON.stringify(weightIndex));
+console.log('Verified model weight chunks prepared: '+Object.values(weightIndex.files).reduce((n,f)=>n+f.chunks.length,0));
 console.log('Pinned WebLLM and model snapshot '+manifest.revision+' verified. Free static AI build ready.');

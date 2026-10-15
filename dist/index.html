@@ -5,7 +5,7 @@
 <meta name="description" content="Отдельная AI-копия помощника оператора: черновик локальной модели по публичным материалам, источники и проверка сотрудником.">
 <title>Прио-Внешторгбанк · AI-копия помощника оператора</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d2746'/%3E%3Cpath d='M9 9h14v4H13v4h8v4h-8v3H9z' fill='%2360d5e9'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=20261015-ai2"><script defer src="knowledge.js?v=20261015-ai2"></script><script type="module" src="app.js?v=20261015-ai2"></script>
+  <link rel="stylesheet" href="styles.css?v=20261015-ai3"><script defer src="knowledge.js?v=20261015-ai3"></script><script type="module" src="app.js?v=20261015-ai3"></script>
 </head>
 <body>
 <a class="skip-link" href="#question">Перейти к обращению</a>
@@ -16,7 +16,7 @@
 </header>
 <main>
 <div class="page-heading"><div><p class="eyebrow">Первая линия поддержки</p><h1>От обращения к проверенному ответу</h1><p class="subtitle">Проверьте основания, уточните недостающее и примите решение.</p></div><button id="materials" class="secondary">База материалов <span aria-hidden="true">↗</span></button></div>
-<div class="disclosure"><span class="disclosure-icon" aria-hidden="true">i</span><p><strong>Бесплатная AI-копия с локальной языковой моделью.</strong> Модель готовит черновик в браузере по публичным пересказам от 09.10.2026. Это небольшая учебная модель; её ответы нужно проверять. Доступа к системам банка нет. Контрольные документы и имитации отмечены отдельно.</p></div>
+<div class="disclosure"><span class="disclosure-icon" aria-hidden="true">i</span><p><strong>Бесплатная AI-копия с локальной языковой моделью.</strong> Модель выбирает подходящие факты из публичных пересказов от 09.10.2026 и собирает черновик в браузере. Это небольшая учебная модель; её ответы нужно проверять. Доступа к системам банка нет. Контрольные документы и имитации отмечены отдельно.</p></div>
 <div class="ai-connection-strip"><span id="ai-connection" role="status" aria-live="polite">Проверка подключения…</span><span>Первый запуск загрузит около 900 МБ. Нужен Chrome или Edge с WebGPU. Используйте только вымышленные или обезличенные вопросы.</span></div>
 <nav class="view-tabs" aria-label="Разделы прототипа"><button id="workspace-tab" class="active" data-view="workspace" aria-pressed="true">Обращение</button><button id="demo-tab" data-view="demo" aria-pressed="false">Демонстрация</button><button id="owner-tab" data-view="owner" aria-pressed="false" hidden>Знания</button><button id="log-tab" data-view="log" aria-pressed="false">Журнал сессии</button></nav>
 <section id="demo-panel" class="demo-panel" hidden aria-labelledby="demo-heading"><div><p class="eyebrow">Для защиты проекта</p><h2 id="demo-heading">Покажите не только успешный ответ</h2><p>Публичные примеры вызывают настоящую локальную модель бесплатно. Сценарии с контрольными документами, сбоем и тайм-аутом выполняются локально, что отмечается в результате. Учебная дата контрольного набора — 14.10.2026.</p></div><div class="demo-controls"><label for="demo-case">Контрольный сценарий</label><select id="demo-case"></select><button id="run-demo" class="primary">Запустить сценарий</button></div><div class="demo-cases" id="example-list"></div><p class="fine">Исходные 14 обращений и 11 публичных источников сохранены. Выбор примера автоматически задаёт тему; при обычном вводе тему выбирает оператор.</p></section>
