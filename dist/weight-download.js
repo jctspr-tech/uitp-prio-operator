@@ -56,18 +56,18 @@ export function createWeightDownloader({nativeFetch=globalThis.fetch.bind(global
   if(typeof nativeFetch!=='function'||!baseUrl||!Number.isFinite(chunkTimeoutMs)||chunkTimeoutMs<=0||!Number.isSafeInteger(maxAttempts)||maxAttempts<1||maxAttempts>3)throw invalid('Invalid weight downloader configuration.');
   const origin=new URL(baseUrl).origin,indexCache=new Map();
   const notify=value=>{try{onProgress?.(value);}catch{/* UI progress cannot corrupt verified bytes. */}};
-  const fetchAsset=async(url,signal,accept)=>{
+  const fetchAsset=async(url,signal,accept,cache='no-store')=>{
     const combined=mergeSignals([signal,AbortSignal.timeout(chunkTimeoutMs)]);
     aborted(combined);
     // Deliberately do not propagate arbitrary headers or Range from the caller.
-    const response=await nativeFetch(url.href,{method:'GET',signal:combined,cache:'no-store',credentials:'same-origin',redirect:'error',headers:{Accept:accept}});
+    const response=await nativeFetch(url.href,{method:'GET',signal:combined,cache,credentials:'same-origin',redirect:'error',headers:{Accept:accept}});
     return{response,signal:combined};
   };
   const retryable=error=>error?.name==='TypeError'||error?.name==='NetworkError'||error?.name==='TimeoutError'||error?.name==='AbortError'||error?.name==='WeightIntegrityError'||error?.retryable===true;
   async function withRetry(action,signal,label){
     for(let attempt=1;attempt<=maxAttempts;attempt++){
       aborted(signal);
-      try{return await action();}
+      try{return await action(attempt);}
       catch(error){
         aborted(signal);
         if(attempt===maxAttempts||!retryable(error))throw error;
@@ -117,8 +117,10 @@ export function createWeightDownloader({nativeFetch=globalThis.fetch.bind(global
           if(part===meta.chunks.length){if(loaded!==meta.bytes)throw integrity('Assembled weight length is incorrect.');controller.close();return;}
           const chunk=meta.chunks[part],chunkUrl=new URL(chunk.file,indexUrl);
           if(chunkUrl.origin!==origin||!chunkUrl.pathname.startsWith(new URL('./chunks/',indexUrl).pathname))throw invalid('Weight chunk escaped the model directory.');
-          const bytes=await withRetry(async()=>{
-            const{response,signal:combined}=await fetchAsset(chunkUrl,signal,'application/octet-stream');
+          const bytes=await withRetry(async attempt=>{
+            // Immutable revision/path + checksum permit cache reuse after an
+            // interrupted startup. Retries bypass/refresh a possibly bad entry.
+            const{response,signal:combined}=await fetchAsset(chunkUrl,signal,'application/octet-stream',attempt===1?'force-cache':'reload');
             if(!response.ok){try{await response.body?.cancel();}catch{}throw Object.assign(new Error('Weight chunk HTTP '+response.status),{name:'WeightHTTPError',status:response.status,retryable:response.status>=500&&response.status<=599});}
             const data=await readBounded(response,chunk.bytes,combined);
             if(!cryptoProvider?.subtle)throw invalid('Checksum verification is unavailable.');

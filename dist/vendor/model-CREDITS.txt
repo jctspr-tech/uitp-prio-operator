@@ -1,0 +1,26 @@
+Qwen model attribution
+
+Model: Qwen2.5-1.5B-Instruct
+Copyright 2024 Alibaba Cloud
+License: Apache License, Version 2.0
+Complete upstream model license: Qwen-LICENSE (in this directory)
+Official model: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct
+Official license: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/raw/main/LICENSE
+
+Browser distribution: Qwen2.5-1.5B-Instruct-q4f16_1-MLC
+Publisher of the quantized model artifacts: MLC AI
+Source: https://huggingface.co/mlc-ai/Qwen2.5-1.5B-Instruct-q4f16_1-MLC
+Pinned artifact revision: 9bd564b064631febf14deadcac492efb761d60c3
+This site uses the existing MLC quantization; it does not fine-tune model weights.
+The original artifact bytes are split into smaller, checksummed transport files.
+The browser reassembles the same original model shard bytes before inference.
+
+Runtime: WebLLM 0.2.85 / MLC AI
+Runtime source: https://github.com/mlc-ai/web-llm
+Runtime license: webllm-LICENSE (in this directory)
+Source library bytes retain their original notices; application integration,
+download progress, checked chunk transport and response validation are separate
+files authored for this educational prototype.
+
+This attribution identifies the upstream sources. It does not imply sponsorship
+or endorsement by Alibaba Cloud, Qwen, MLC AI, or the bank.

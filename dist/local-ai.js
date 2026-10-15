@@ -4,7 +4,7 @@ export const MODEL_REVISION = '9bd564b064631febf14deadcac492efb761d60c3';
 export const MODEL_ASSET_DIRECTORY = './model-assets/qwen2.5-1.5b/resolve/'+MODEL_REVISION+'/';
 export const MODEL_WASM_FILE = './vendor/qwen-1.5b-0fceb50bbaf4.wasm';
 export const GENERATION_TIMEOUT_MS = 90_000;
-export const LOAD_TIMEOUT_MS = 600_000;
+export const LOAD_TIMEOUT_MS = 1_200_000;
 
 export class LocalAIError extends Error {
   constructor(code,message) { super(message);this.name='LocalAIError';this.code=code; }
@@ -162,7 +162,7 @@ async function defaultEngineLoader(onProgress,onWorker) {
   const {CreateWebWorkerMLCEngine,prebuiltAppConfig}=await import('./vendor/webllm.js');
   const record=prebuiltAppConfig.model_list.find(r=>r.model_id===MODEL_ID);
   if(!record)throw new LocalAIError('MODEL_LOAD_FAILED','Не найдено описание локальной модели. Обновите страницу.');
-  const worker=new Worker(new URL('./model-worker.js?v=20261015-ai3',import.meta.url),{type:'module'});
+  const worker=new Worker(new URL('./model-worker.js?v=20261015-ai5',import.meta.url),{type:'module'});
   onWorker(worker);
   // Cache.add can hide its network operation from fetch cancellation/progress in embedded browsers.
   // IndexedDB uses the explicit bounded fetch path and still caches model assets between visits.

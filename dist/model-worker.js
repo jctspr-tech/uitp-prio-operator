@@ -1,5 +1,5 @@
 import { WebWorkerMLCEngineHandler } from './vendor/webllm.js';
-import { createWeightDownloader } from './weight-download.js';
+import { createWeightDownloader } from './weight-download.js?v=20261015-ai5';
 
 // WebLLM's normal percentage starts only after its first config/WASM fetches.
 // Report bounded asset phases without logging prompts, credentials, or raw exceptions.

@@ -1,4 +1,4 @@
-import './local-ai.js?v=20261015-ai4';
+import './local-ai.js?v=20261015-ai5';
 'use strict';
 const $=s=>document.querySelector(s), KB=BANK_KNOWLEDGE, DK=DEMO_KNOWLEDGE;
 const SCENARIO_DATE='2026-10-14';
