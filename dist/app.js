@@ -1,4 +1,4 @@
-import './local-ai.js?v=20261015-ai3';
+import './local-ai.js?v=20261015-ai4';
 'use strict';
 const $=s=>document.querySelector(s), KB=BANK_KNOWLEDGE, DK=DEMO_KNOWLEDGE;
 const SCENARIO_DATE='2026-10-14';
@@ -164,7 +164,7 @@ function claimsHtml(){
 }
 function generationHtml(){
   if(state.mode==='control')return '<p class="generation-meta">Учебный контрольный сценарий · выполнен локально · без вызова модели.</p>';
-  if(state.mode==='retrieval')return '<p class="generation-meta">Локальный поиск не нашёл подходящих оснований. Языковая модель не вызывалась; это не сгенерированный AI-ответ.</p>';
+  if(state.mode==='retrieval')return '<p class="generation-meta">Проверка публичных оснований · языковая модель не вызывалась.</p>';
   if(state.mode==='guard')return '<p class="generation-meta">Локальная проверка ввода · запрос модели не отправлен.</p>';
   if(state.mode!=='ai'||state.stage==='loading')return '';
   const detail=[state.model?('Модель: '+state.model):null,state.elapsedMs!==null?((state.elapsedMs/1000).toFixed(1)+' с'):null,state.usage?('Токены: '+state.usage.inputTokens+' вход / '+state.usage.outputTokens+' выход'):null].filter(Boolean).join(' · ');
