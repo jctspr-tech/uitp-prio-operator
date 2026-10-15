@@ -1,4 +1,4 @@
-import './local-ai.js';
+import './local-ai.js?v=20261015-ai2';
 'use strict';
 const $=s=>document.querySelector(s), KB=BANK_KNOWLEDGE, DK=DEMO_KNOWLEDGE;
 const SCENARIO_DATE='2026-10-14';
@@ -110,7 +110,7 @@ async function requestModel(){
   const token=++requestToken,activeRevision=revision,controller=new AbortController();requestController=controller;requestPending=true;state.stage='loading';state.mode='ai';
   state.retrieved=retrieve(state.question+' '+state.clarification,state.topic).filter(r=>!sources[r.id].synthetic);state.excluded=state.retrieved.filter(r=>!r.eligible);
   emit('generation_started',{mode:'ai',excludedSourceIds:publicExcludedIds()});render();
-  let timedOut=false,generationTimer=null,abortListener=null;const overallTimer=setTimeout(()=>{timedOut=true;controller.abort();},600000);
+  let timedOut=false,generationTimer=null,abortListener=null;const overallTimer=setTimeout(()=>{timedOut=true;controller.abort();},1200000);
   const onProgress=p=>{if(token!==requestToken||activeRevision!==revision)return;state.loadingPhase=p?.phase||'init';state.loadingMessage=typeof p?.text==='string'?p.text.slice(0,350):'Подготовка локальной модели…';if(p?.phase==='generating'&&!generationTimer)generationTimer=setTimeout(()=>{timedOut=true;controller.abort();},65000);renderResult();};
   try{
     if(!window.OperatorAI?.generate)throw Error('Локальная модель недоступна. Обновите страницу или откройте ручную базу.');
@@ -203,7 +203,7 @@ function routeHtml(){const noRule=!state.route.rule;return `<div class="routing"
 function handoffHtml(){if(!state.handoffText)return '';return `<div class="routing"><h3>Запрос для ручной передачи</h3><p class="fine">Отредактируйте направление и контекст. Это текст для оператора; отправка не выполняется.</p><label for="handoff-text" class="hand-label">Обезличенный контекст обращения</label><textarea id="handoff-text" maxlength="5000"></textarea><button id="copy-handoff" class="secondary">Скопировать запрос</button></div>`;}
 function feedbackHtml(){const reasons=['Подтверждённый ответ','Неверный факт','Устаревший источник','Неполный ответ','Нерелевантный поиск','Недостаточно оснований','Конфликт документов','Неудобная формулировка','Другое'];return `<div class="feedback-box"><h3>Помогла ли рекомендация?</h3><p class="fine">Оценка связана с ${esc(state.recommendationId)} и версиями оснований.</p><label for="feedback-reason">Причина</label><select id="feedback-reason" class="feedback-reason">${reasons.map(r=>`<option ${state.feedback?.reason===r?'selected':''}>${esc(r)}</option>`).join('')}</select><div class="feedback-actions"><button id="feedback-useful" class="secondary">Полезно</button><button id="feedback-not" class="secondary">Не полезно</button></div>${state.feedback?`<p class="feedback-result">Сохранено в этой сессии: ${state.feedback.useful?'полезно':'не полезно'} · ${esc(state.feedback.reason)}</p>`:''}</div>`;}
 function renderResult(){let html='',status='Ожидает вопроса',statusClass='';
-  if(state.stage==='loading'){status='Модель готовит ответ';statusClass='warning';html=`<div class="empty-state loading-state"><span class="loading-spinner" aria-hidden="true"></span><h3>${state.loadingPhase==='generating'?'Модель готовит черновик':'Загружаем локальную модель'}</h3><p>${esc(state.loadingMessage)}</p><button id="cancel-generation" class="secondary">Отменить ожидание</button><small>Первый запуск загружает около 300 МБ. После загрузки модель работает в браузере; запрос не отправляется в AI-сервис.</small></div>`; }
+  if(state.stage==='loading'){status='Модель готовит ответ';statusClass='warning';html=`<div class="empty-state loading-state"><span class="loading-spinner" aria-hidden="true"></span><h3>${state.loadingPhase==='generating'?'Модель готовит черновик':'Загружаем локальную модель'}</h3><p>${esc(state.loadingMessage)}</p><button id="cancel-generation" class="secondary">Отменить ожидание</button><small>Первый запуск загружает около 900 МБ. После загрузки модель работает в браузере; запрос не отправляется в AI-сервис.</small></div>`; }
   else if(state.stage==='empty')html='<div class="empty-state"><span class="empty-icon" aria-hidden="true">✎</span><h3>Начните с темы и вопроса</h3><p>Получите черновик вместе с основаниями. Окончательное решение остаётся за оператором.</p><small>Готовые примеры находятся в разделе «Демонстрация».</small></div>';
   else{const history=state.clarification?`<div class="clarification-history"><strong>Уточнение:</strong> ${esc(state.clarification)}</div>`:'';
     html=`<div class="result-body"><div class="result-kicker"><span>${esc(topicName(state.topic))}</span><span>${esc(state.recommendationId)}</span></div>${history}${generationHtml()}`;

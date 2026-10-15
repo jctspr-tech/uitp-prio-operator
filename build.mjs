@@ -22,7 +22,8 @@ for(const [name,path,hash] of assets){
     await writeFile(target,bytes);
   }
 }
-const manifest=JSON.parse(await readFile(resolve(root,'model-assets.json'),'utf8'));
+const manifest=JSON.parse(await readFile(resolve(root,'model-assets-1.5b.json'),'utf8'));
+if(!/^model-assets\/[a-zA-Z0-9_./-]+$/u.test(manifest.staticDirectory)||manifest.staticDirectory.split('/').includes('..'))throw Error('Invalid model snapshot directory');
 async function verified(target,hash,bytes){
   try{
     if(bytes!==undefined&&(await stat(target)).size!==bytes)return false;
@@ -59,6 +60,6 @@ async function downloadAsset(asset,folder){
 const queue=[...manifest.assets];
 // WebLLM normalizes model roots to /resolve/<revision>/. Keep the
 // mirrored snapshot at the same shape so all config/weight URLs resolve.
-await Promise.all([0,1].map(async()=>{while(queue.length)await downloadAsset(queue.shift(),'dist/model-assets/resolve/main');}));
+await Promise.all([0,1].map(async()=>{while(queue.length)await downloadAsset(queue.shift(),'dist/'+manifest.staticDirectory);}));
 await downloadAsset(manifest.wasm,'dist/vendor');
 console.log('Pinned WebLLM and model snapshot '+manifest.revision+' verified. Free static AI build ready.');
