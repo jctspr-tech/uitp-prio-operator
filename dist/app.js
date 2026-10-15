@@ -1,4 +1,5 @@
-import './local-ai.js?v=20261015-ai5';
+import './local-ai.js?v=20261015-ai6';
+import {importModelPackage} from './model-cache.js?v=20261015-ai6';
 'use strict';
 const $=s=>document.querySelector(s), KB=BANK_KNOWLEDGE, DK=DEMO_KNOWLEDGE;
 const SCENARIO_DATE='2026-10-14';
@@ -10,15 +11,16 @@ const sourceTemplates={};
 Object.entries(KB.sources).forEach(([id,s])=>{sourceTemplates[id]={...s,id,synthetic:false,status:'active',owner:'не установлен',version:id==='manual'?'3.0':'не установлена',validFrom:null,validTo:null,topics:DK.sourceTopics[id],access:['operator','owner'],snapshotVersion:'public-2026-10-09',fragments:s.summary.split(/(?<=\.)\s+(?=[А-ЯЁ])/).filter(Boolean)};});
 Object.entries(DK.controlSources).forEach(([id,s])=>{sourceTemplates[id]={...s,id,synthetic:true,url:null,owner:'Учебный владелец знаний',kind:'Учебный документ',topics:['control'],access:['operator','owner'],snapshotVersion:'control-'+s.version,fragments:[s.summary],caveat:'Синтетический контрольный материал. Не относится к действующим регламентам банка.'};});
 let requestController=null,requestToken=0,requestPending=false;
+let modelImportPending=false,modelImportController=null,modelImportToken=0,modelImportMessage='',modelImportProgress=0;
 let aiConfig={status:'checking',model:null,configured:null,budgetLimit:null};
 let sources=structuredClone(sourceTemplates),events=[],eventSeq=0,recommendationSeq=0,revision=0,role='operator',view='workspace',copyPending=false,copyToken=0,toastTimer;
 const emptyState=()=>({stage:'empty',topic:'',question:'',clarification:'',caseId:null,draft:'',sourceIds:[],excluded:[],retrieved:[],sourceVersions:{},recommendationId:null,verified:false,invalidated:false,edited:false,editing:false,copied:false,reason:'',missing:[],route:{rule:null,direction:null,decision:null},feedback:null,handoffText:'',handoffEdited:false,failure:null,mode:null,generatedByModel:false,provider:'local',claims:[],model:null,requestId:null,usage:null,elapsedMs:null,loadingMessage:'Подготовка локальной модели…',loadingPhase:'init'});
 let state=emptyState();
-const labels={generation_started:'Начата подготовка ответа',generation_cancelled:'Генерация отменена в интерфейсе',generation_completed:'Ответ AI получен',retrieval_completed:'Проверены публичные основания без вызова модели',recommendation_created:'Создана рекомендация',clarification:'Получено уточнение',review:'Проверка оператором',draft_edited:'Черновик изменён',source_status_changed:'Изменён статус материала',recommendation_invalidated:'Рекомендация требует обновления',route_decision:'Решение по передаче',handoff_created:'Подготовлен запрос',handoff_edited:'Запрос изменён',feedback:'Оценка рекомендации',role_changed:'Изменена учебная роль',manual_knowledge_opened:'Открыта ручная база',export_requested:'Запрошен экспорт',reset:'Новое обращение',demo_started:'Запущен контрольный сценарий',copy:'Текст скопирован'};
+const labels={model_package_imported:'Готовая модель сохранена в браузере',generation_started:'Начата подготовка ответа',generation_cancelled:'Генерация отменена в интерфейсе',generation_completed:'Ответ AI получен',retrieval_completed:'Проверены публичные основания без вызова модели',recommendation_created:'Создана рекомендация',clarification:'Получено уточнение',review:'Проверка оператором',draft_edited:'Черновик изменён',source_status_changed:'Изменён статус материала',recommendation_invalidated:'Рекомендация требует обновления',route_decision:'Решение по передаче',handoff_created:'Подготовлен запрос',handoff_edited:'Запрос изменён',feedback:'Оценка рекомендации',role_changed:'Изменена учебная роль',manual_knowledge_opened:'Открыта ручная база',export_requested:'Запрошен экспорт',reset:'Новое обращение',demo_started:'Запущен контрольный сценарий',copy:'Текст скопирован'};
 function emit(type,data={}){events.push({id:++eventSeq,time:new Date().toISOString(),type,role,recommendationId:state.recommendationId,topic:state.topic||null,...data});$('#session-count').textContent='Событий сессии: '+events.length;}
 function notify(message){$('#toast').textContent=message;$('#toast').classList.add('toast-visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('toast-visible'),3300);}
 function clone(v){return JSON.parse(JSON.stringify(v));}
-function getState(){return clone({...state,role,scenarioDate:SCENARIO_DATE,version:DK.version,copyPending,requestPending,aiConfig,events,sources});}
+function getState(){return clone({...state,role,scenarioDate:SCENARIO_DATE,version:DK.version,copyPending,requestPending,modelImportPending,modelImportMessage,modelImportProgress,aiConfig,events,sources});}
 function bounded(v,max,label){if(typeof v!=='string'||v.length>max)throw Error(label+' — не более '+max+' символов.');return v.trim();}
 function limitInput(field,max){if(field.value.length>max)field.value=field.value.slice(0,max);return field.value;}
 function inputCount(){$('#char-count').textContent=$('#question').value.length+' / 1200';}
@@ -89,6 +91,44 @@ function cancelGeneration(reason){
   if(state.stage==='loading')state={...emptyState(),topic:state.topic,question:state.question,clarification:state.clarification};
   return true;
 }
+function renderModelImport(){
+  $('#load-model-package').disabled=modelImportPending;
+  $('#cancel-model-package').hidden=!modelImportPending;
+  $('#model-package-status').textContent=modelImportMessage;
+  $('#model-package-progress').hidden=!modelImportPending;
+  $('#model-package-progress').value=modelImportProgress;
+  $('#model-package-panel').setAttribute('aria-busy',String(modelImportPending));
+  $('#generate').disabled=requestPending||modelImportPending;
+  $('#reset').disabled=modelImportPending;
+}
+function cancelModelImport(){
+  if(!modelImportPending)return;
+  modelImportToken++;modelImportController?.abort();modelImportController=null;modelImportPending=false;
+  modelImportMessage='Загрузка отменена. Можно выбрать файл модели снова.';renderModelImport();
+}
+async function installModelPackage(file){
+  if(!file||modelImportPending)return;
+  cancelGeneration('Выбрана готовая модель');revision++;
+  const token=++modelImportToken,controller=new AbortController();modelImportController=controller;modelImportPending=true;modelImportProgress=0;modelImportMessage='Проверяем файл модели…';render();renderModelImport();
+  try{
+    const result=await importModelPackage(file,{signal:controller.signal,onProgress:p=>{
+      if(token!==modelImportToken||!modelImportPending)return;
+      modelImportProgress=Number.isFinite(p?.progress)?Math.min(1,Math.max(0,p.progress)):0;
+      modelImportMessage=p?.phase==='installing'&&Number.isFinite(p.completedAssets)&&Number.isFinite(p.totalAssets)?`Сохраняем модель в браузере: ${p.completedAssets} из ${p.totalAssets} файлов.`:p?.phase==='complete'?'Завершаем сохранение модели…':'Проверяем файл модели…';
+      renderModelImport();
+    }});
+    if(token!==modelImportToken||controller.signal.aborted)return;
+    modelImportMessage='Модель проверена и сохранена. Теперь подготовьте ответ.';modelImportProgress=1;
+    emit('model_package_imported',{model:result.model,revision:result.revision,installedAssets:result.installedAssets,totalBytes:result.totalBytes});loadConfig();
+  }catch(error){
+    if(token!==modelImportToken)return;
+    const messages={MODEL_PACKAGE_INVALID:'Этот файл не подходит. Выберите готовый файл модели с расширением .uitp-model.',MODEL_PACKAGE_CORRUPT:'Файл модели не прошёл проверку. Скачайте готовый файл заново.',MODEL_PACKAGE_CANCELED:'Загрузка отменена. Можно выбрать файл модели снова.',MODEL_CACHE_IMPORT_FAILED:'Не удалось сохранить модель в этом браузере. Проверьте свободное место и попробуйте снова.'};
+    modelImportMessage=messages[error.code]||'Не удалось проверить и сохранить модель. Проверьте свободное место и выберите готовый файл снова.';
+  }finally{
+    if(token===modelImportToken){modelImportPending=false;modelImportController=null;renderModelImport();}
+    $('#model-package-file').value='';
+  }
+}
 function publicExcludedIds(){return Object.values(sources).filter(s=>!s.synthetic&&!allowed(s)).map(s=>s.id);}
 function modelResult(data){
   const stages=['answer','clarify','insufficient','conflict'];
@@ -127,6 +167,7 @@ async function requestModel(){
   if(token===requestToken&&activeRevision===revision)finishRecommendation();return getState();
 }
 async function prepare(text,topic,failure=null){
+  if(modelImportPending)throw Error('Дождитесь сохранения модели или отмените загрузку. Вопрос сохранён.');
   if(role==='analyst')throw Error('В учебной роли аналитика доступен только журнал. Переключитесь на оператора.');
   if(requestPending)throw Error('Дождитесь текущего результата или отмените запрос. Повторная отправка заблокирована.');
   const clean=bounded(text,1200,'Вопрос');if(!clean)throw Error('Введите вопрос клиента.');
@@ -139,6 +180,7 @@ async function prepare(text,topic,failure=null){
   return requestModel();
 }
 async function clarify(channel,detail=''){
+  if(modelImportPending)throw Error('Дождитесь сохранения модели или отмените загрузку.');
   if(state.stage!=='clarify'||requestPending)throw Error('Сейчас уточнение не требуется.');
   if(!['retail','business','custom'].includes(channel))throw Error('Выберите тип клиента.');
   detail=bounded(detail,500,'Уточнение');if(channel==='custom'&&!detail)throw Error('Введите уточнение.');
@@ -181,7 +223,7 @@ function setSourceStatus(id,status,internal=false){if(!internal&&role!=='owner')
 function setRole(next){if(!['operator','owner','analyst'].includes(next))throw Error('Неизвестная учебная роль.');cancelGeneration('Изменена учебная роль');$('#source-dialog').close();$('#materials-dialog').close();role=next;if(role!=='owner'&&state.sourceIds.some(id=>sources[id].status==='restricted')){invalidate('Материал недоступен выбранной учебной роли');state.draft='';state.caseId=null;state.stage='insufficient';state.reason='Основание стало недоступно выбранной учебной роли. Нужен доступный материал или специалист.';state.excluded=state.sourceIds.map(id=>({id,eligible:false,reason:excludedReason(sources[id])}));state.sourceIds=[];}$('#role-select').value=role;state.verified=false;state.copied=false;revision++;emit('role_changed');if(role==='analyst')view='log';else if(view==='owner'&&role!=='owner')view='workspace';render();return getState();}
 function reset(){cancelGeneration('Новое обращение');revision++;state=emptyState();$('#question').value='';$('#topic').value='';$('#question-error').textContent='';inputCount();emit('reset');render();return getState();}
 function restoreSources(){cancelGeneration('Набор материалов восстановлен');revision++;sources=structuredClone(sourceTemplates);if(state.sourceIds.length)invalidate('Учебный набор восстановлен');emit('source_status_changed',{sourceId:'all',status:'restored'});render();}
-function loadDemo(name){const demo=DK.demos.find(d=>d.id===name)||(name==='control'||name==='answer-control'?{id:'control',topic:'control',question:'Куда передать контрольную заявку TEST-42?'}:null);if(!demo)throw Error('Неизвестный сценарий.');if(role==='analyst')setRole('operator');restoreSources();if(name==='conflict')setSourceStatus('demo-conflict','active',true);emit('demo_started',{scenario:name,scenarioDate:SCENARIO_DATE});view='workspace';return prepare(demo.question,demo.topic,['error','timeout'].includes(name)?name:null);}
+function loadDemo(name){if(modelImportPending)throw Error('Дождитесь сохранения модели или отмените загрузку.');const demo=DK.demos.find(d=>d.id===name)||(name==='control'||name==='answer-control'?{id:'control',topic:'control',question:'Куда передать контрольную заявку TEST-42?'}:null);if(!demo)throw Error('Неизвестный сценарий.');if(role==='analyst')setRole('operator');restoreSources();if(name==='conflict')setSourceStatus('demo-conflict','active',true);emit('demo_started',{scenario:name,scenarioDate:SCENARIO_DATE});view='workspace';return prepare(demo.question,demo.topic,['error','timeout'].includes(name)?name:null);}
 function exportLog(){emit('export_requested');return clone({schemaVersion:1,prototypeVersion:DK.version,scenarioDate:SCENARIO_DATE,scope:'session-only events; no question or draft text; local model inference in browser; model resources may be downloaded',events});}
 async function copy(target='draft'){
   if(copyPending)throw Error('Предыдущая операция копирования ещё не завершилась.');
@@ -213,7 +255,7 @@ function renderResult(){let html='',status='Ожидает вопроса',statu
     }else{status={insufficient:'Недостаточно оснований',conflict:'Конфликт документов',error:'Ручное продолжение',blocked:'Обезличьте вопрос'}[state.stage]||'Требуется проверка';statusClass=state.stage==='error'||state.stage==='blocked'?'danger':'warning';html+=`<div class="notice ${state.stage==='error'||state.stage==='blocked'?'danger':''}"><h3>${esc(status)}</h3><p>${esc(state.reason)}</p></div><ul class="missing">${state.missing.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`;if(state.stage==='error')html+='<button id="manual-knowledge" class="primary">Открыть ручную базу</button><button id="refresh-search" class="text-button">Повторить запрос →</button>';}
     if(state.stage!=='blocked')html+=routeHtml()+handoffHtml()+feedbackHtml();html+='</div>';
   }
-  $('#result').innerHTML=html;$('#result').setAttribute('aria-busy',String(requestPending));$('#generate').disabled=requestPending;$('#generate').textContent=requestPending?'Модель готовит ответ…':'Подготовить с AI';$('#cancel-generation')?.addEventListener('click',()=>{cancelGeneration('Оператор отменил ожидание');revision++;render();notify('Ожидание отменено. Вопрос сохранён. Загруженные файлы модели могут остаться в кэше браузера.');});$('#result-status').textContent=status;$('#result-status').className='status '+statusClass;
+  $('#result').innerHTML=html;$('#result').setAttribute('aria-busy',String(requestPending));$('#generate').disabled=requestPending||modelImportPending;$('#generate').textContent=requestPending?'Модель готовит ответ…':'Подготовить с AI';$('#cancel-generation')?.addEventListener('click',()=>{cancelGeneration('Оператор отменил ожидание');revision++;render();notify('Ожидание отменено. Вопрос сохранён. Загруженные файлы модели могут остаться в кэше браузера.');});$('#result-status').textContent=status;$('#result-status').className='status '+statusClass;
   if($('#draft')){$('#draft').value=state.draft;$('#draft').addEventListener('input',e=>updateDraft(limitInput(e.target,5000),false));}
   if($('#handoff-text')){$('#handoff-text').value=state.handoffText;$('#handoff-text').addEventListener('input',e=>updateHandoff(limitInput(e.target,5000)));}
   $('#edit')?.addEventListener('click',()=>{state.editing=!state.editing;render();if(state.editing)$('#draft').focus();});
@@ -227,6 +269,7 @@ function renderResult(){let html='',status='Ожидает вопроса',statu
 function renderOwner(){$('#owner-sources').innerHTML=Object.values(sources).map(s=>`<div class="owner-row"><div><h3>${esc(s.title)}</h3><p>${s.synthetic?'Учебный документ':'Публичный пересказ'} · версия ${esc(s.version)} · ${esc(s.id)}</p></div><label class="sr-only" for="status-${esc(s.id)}">Статус ${esc(s.title)}</label><select id="status-${esc(s.id)}" data-status-source="${esc(s.id)}" aria-label="Статус ${esc(s.title)}">${Object.entries(statusLabels).map(([id,label])=>`<option value="${id}" ${s.status===id?'selected':''}>${esc(label)}</option>`).join('')}</select><span class="status ${s.status==='active'?'ready':'warning'}">${s.synthetic?'Учебная дата: 14.10.2026':'Срок банка неизвестен'}</span></div>`).join('');document.querySelectorAll('[data-status-source]').forEach(el=>el.addEventListener('change',()=>safe(()=>setSourceStatus(el.dataset.statusSource,el.value))));}
 function renderLog(){$('#log-events').innerHTML=events.length?events.slice().reverse().map(e=>`<div class="log-item"><span>${e.id}</span><div><strong>${esc(labels[e.type]||e.type)}</strong><br><time>${esc(e.time.slice(11,19))} UTC</time></div><code>${esc(JSON.stringify(Object.fromEntries(Object.entries(e).filter(([k])=>!['id','time','type'].includes(k)))))}</code></div>`).join(''):'<div class="empty-state"><h3>Сессия только началась</h3><p>После действий оператора здесь появятся события.</p></div>';}
 function render(){
+  renderModelImport();
   $('#owner-tab').hidden=role!=='owner';$('#workspace-tab').hidden=role==='analyst';$('#demo-tab').hidden=role==='analyst';
   document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-pressed',String(b.dataset.view===view));});
   $('#operator-workspace').hidden=!['workspace','demo'].includes(view)||role==='analyst';$('#demo-panel').hidden=view!=='demo'||role==='analyst';$('#knowledge-owner').hidden=view!=='owner'||role!=='owner';$('#event-log').hidden=view!=='log';
@@ -238,6 +281,9 @@ function openSource(id){const s=sources[id];if(!s)throw Error('Материал 
 function renderMaterials(){const text=norm($('#kb-search').value);const visible=Object.values(sources).filter(s=>role!=='analyst'&&(s.status!=='restricted'||role==='owner')&&norm(s.title+' '+s.summary).includes(text));$('#materials-list').innerHTML=visible.map(s=>`<article class="material-item"><span class="source-badge ${s.synthetic?'synthetic':''}">${s.synthetic?'Учебный документ':'Публичный пересказ'}</span><h3>${esc(s.title)}</h3><p>${esc(s.summary)}</p>${statusMetadata(s)}<p class="fine">${esc(s.caveat)}</p>${s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Официальный источник ↗</a>`:''}</article>`).join('')||'<p class="fine" style="margin-top:20px">Подходящих материалов нет.</p>';}
 function openMaterials(){if(role==='analyst')throw Error('Учебному аналитику доступен только журнал.');$('#kb-search').value='';renderMaterials();emit('manual_knowledge_opened');$('#materials-dialog').showModal();}
 function downloadLog(){const data=exportLog(),blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='operator-session.json';document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);renderLog();}
+$('#load-model-package').addEventListener('click',()=>{if(modelImportPending)return;$('#model-package-file').value='';$('#model-package-file').click();});
+$('#model-package-file').addEventListener('change',e=>safe(()=>installModelPackage(e.target.files?.[0])));
+$('#cancel-model-package').addEventListener('click',cancelModelImport);
 $('#topic').innerHTML+='<option disabled>──────────────</option>'+DK.topics.map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join('');
 $('#demo-case').innerHTML=DK.demos.map(d=>`<option value="${d.id}">${esc(d.label)}</option>`).join('')+'<option value="control">Учебный ответ TEST-42</option>';
 $('#example-list').innerHTML=KB.cases.map(c=>`<button class="example-button" data-example="${esc(c.id)}">${esc(c.label)}</button>`).join('');
